@@ -1,63 +1,38 @@
-/*Questão 01. 
- *Crie um procedimento denominado salaryHistogram, que distribua as frequências dos salários dos Professores em intervalos (Histograma).
-O número de intervalos será calculado de acordo com o parâmetro de entrada do procedimento. Exemplo: EXEC dbo.salaryHistogram 5;*/
-
-CREATE PROCEDURE salaryHistogram @intervalo INT
+/*
+Questão 01. Crie um procedimento denominado salaryHistogram, que distribua as frequências dos salários dos Professores em intervalos (Histograma).
+O número de intervalos será calculado de acordo com o parâmetro de entrada do procedimento. Exemplo: EXEC dbo.salaryHistogram 4;
+*/
+-- Criação do procedimento
+CREATE PROCEDURE dbo.salaryHistogram @number_interval INT
 AS
-BEGIN
-	DECLARE @sMin DECIMAL(10, 2), @sMax DECIMAL(10, 2);
-	DECLARE @linhasSaida DECIMAL(10, 2), @diferenca DECIMAL(10, 2);
-	DECLARE @i INT = 0;
-	DECLARE @ValorMinimo DECIMAL(10, 2), @ValorMaximo DECIMAL(10, 2);
+DECLARE @tamanhoIntervalo NUMERIC(8,2); 
+DECLARE @LocationTVP AS TABLE (valorMinimo INT, valorMaximo INT);
+DECLARE @intervaloMinimo INT;
+DECLARE @intervaloMaximo INT;
+DECLARE @limiteAtual INT;
 
-	SELECT @sMin = MIN(salary), @sMax = MAX(salary) FROM instructor;
+SET @intervaloMinimo = (SELECT FLOOR(MIN(instructor.salary)) FROM instructor);
+SET @intervaloMaximo = (SELECT CEILING(MAX(instructor.salary)) FROM instructor);
 
-	IF @sMin = @sMax
-	BEGIN
-		SELECT @sMin AS ValorMinimo, @sMax AS ValorMaximo, COUNT(*) AS Total
-		FROM instructor;
-		RETURN;
-	END
+SET @tamanhoIntervalo = CEILING((@intervaloMaximo-@intervaloMinimo)/@number_interval); 
 
-	SET @diferenca = @sMax - @sMin;
-	SET @linhasSaida =  @diferenca / @intervalo;
+PRINT 'Intervalo mínimo: ' + CAST(@intervaloMinimo as nvarchar(20));
+PRINT 'Intervalo máximo: ' + CAST(@intervaloMaximo as nvarchar(20));
+PRINT 'Tamanho do intervalo: ' + CAST(@tamanhoIntervalo as nvarchar(20));
 
-	CREATE TABLE #histograma (
-		ValorMinimo DECIMAL(10, 2),
-		ValorMaximo DECIMAL(10, 2),
-		Total INT
-	);
+SET @limiteAtual = @intervaloMinimo;
 
-	WHILE @i < @intervalo
-	BEGIN
-		SET @ValorMinimo = @sMin + @linhasSaida * @i;
-		SET @ValorMaximo = @ValorMinimo + @linhasSaida;
-	
-        IF @valorMaximo > @sMax
-            SET @valorMaximo = @sMax;
+WHILE (@limiteAtual + @tamanhoIntervalo + 1 < @intervaloMaximo)
+  BEGIN
+  INSERT INTO @LocationTVP VALUES (@limiteAtual, @limiteAtual + @tamanhoIntervalo);
+  SET @limiteAtual = @limiteAtual + @tamanhoIntervalo;
+END;
 
-		INSERT INTO #histograma (ValorMinimo, ValorMaximo, Total)
-		SELECT @ValorMinimo, @ValorMaximo, COUNT(*)
-		FROM instructor
-		WHERE salary >= @ValorMinimo AND salary < @ValorMaximo;
+INSERT INTO @LocationTVP VALUES (@limiteAtual, @intervaloMaximo);
 
-		SET @i = @i + 1;
-	END
+SELECT l.valorMinimo, l.valorMaximo, count(*) AS total FROM @LocationTVP l
+LEFT JOIN dbo.instructor ON instructor.salary BETWEEN l.valorMinimo AND l.valorMaximo
+GROUP BY l.valorMinimo, l.valorMaximo;
 
-    IF EXISTS (
-        SELECT 1 FROM instructor
-        WHERE salary = @sMax
-        AND NOT EXISTS (
-            SELECT 1 FROM #histograma
-            WHERE @sMax >= valorMinimo AND @sMax < valorMaximo))
-    BEGIN
-        INSERT INTO #histograma (ValorMinimo, ValorMaximo, total)
-        VALUES (@sMax, @sMax, (SELECT COUNT(*) FROM instructor WHERE salary = @sMax))
-    END
-
-    SELECT * FROM #histograma
-    DROP TABLE #histograma
-END
-
-
-EXEC salaryHistogram 5;
+-- Execução do procedimento
+EXEC dbo.salaryHistogram 5;
